@@ -5,6 +5,15 @@ import numpy as np
 
 class DraggablePoint:
     def __init__(self, point, ax, update_info_callback, color='blue', radius=0.1):
+        """
+        Initialize a draggable point on a matplotlib axis.
+
+        :param point: Initial coordinates of the point (x, y).
+        :param ax: Matplotlib axis where the point will be drawn.
+        :param update_info_callback: Function to call when the point is moved.
+        :param color: Color of the point.
+        :param radius: Radius of the point.
+        """
         self.point = point
         self.ax = ax
         self.radius = radius
@@ -26,6 +35,7 @@ class DraggablePoint:
         contains, _ = self.circle.contains(event)
         if contains:
             self.circle.set_facecolor('pink')  
+
         else:
             self.circle.set_facecolor(self.color)
         self.circle.figure.canvas.draw_idle()
@@ -58,6 +68,9 @@ class DraggablePoint:
 
 
 class PointSetRegistration:
+    """
+    Initialize the point set registration with source and target points.
+    """
     def __init__(self, source_points, target_points):
         self.source_points = source_points
         self.target_points = target_points
@@ -78,6 +91,7 @@ class PointSetRegistration:
         self.fig.canvas.draw_idle()
 
     def init_plot(self):
+        # plot setting
         self.ax.scatter(*zip(*self.target_points), color='red')
         for point in self.source_points:
             dp = DraggablePoint(point, self.ax, self.update_info, color='blue')
@@ -110,7 +124,18 @@ class PointSetRegistration:
 
         self.fig.canvas.draw_idle()
 
+
+# please check this class. Jack.
 class PointSetRegistrationCalculator:
+    """
+    After user clicks on the "Run ICP" button, calculate the average distance between source and target points.
+    Apply the Iterative Closest Point (ICP) algorithm
+    this not finished yet. jack you can check this method and discuss with me later. but this gonna be the main part of the code in future.
+
+
+    :param iterations: Number of iterations to perform ICP.
+    :return: The average distance after applying ICP.
+    """
     def __init__(self, source_points, target_points):
         self.source_points = np.array(source_points)
         self.target_points = np.array(target_points)
@@ -134,27 +159,25 @@ class PointSetRegistrationCalculator:
             t = centroid_target - R @ centroid_source
             self.source_points = (R @ source_centered.T).T + t
         return self.calculate_average_distance()
+ 
+# main function
+if __name__ == '__main__':
+    # Example usage
+    # translation
+    source_points = [(2, 1), (3, 4), (1, 3), (4, 3), (2, 2)]
+    target_points = [(7, 6), (8, 9), (6, 8), (9, 8), (7, 7)]
 
-    
+    # another example rotation
+    # source_points = [(3.00, 2.00), (2.50, 1.00), (2.00, 2.50), (1.00, 2.00), (1.50, 1.00)]
+    # target_points = [(6.5, 7.0), (7.0, 8.0), (7.5, 6.5), (8.5, 7.0), (8.0, 8.0)]
 
-# Example usage
-# translation
-source_points = [(2, 1), (3, 4), (1, 3), (4, 3), (2, 2)]
-target_points = [(7, 6), (8, 9), (6, 8), (9, 8), (7, 7)]
+    # init the graph
+    psr = PointSetRegistration(source_points, target_points)
 
+    # set up our calculator and ICP
+    psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
+    initial_distance = psr_calculator.calculate_average_distance()
+    print(f"Initial average distance: {initial_distance}")
 
-
-# rotaion
-# source_points = [(3.00, 2.00), (2.50, 1.00), (2.00, 2.50), (1.00, 2.00), (1.50, 1.00)]
-# target_points = [(6.5, 7.0), (7.0, 8.0), (7.5, 6.5), (8.5, 7.0), (8.0, 8.0)]
-
-
-psr = PointSetRegistration(source_points, target_points)
-
-
-psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
-initial_distance = psr_calculator.calculate_average_distance()
-print(f"Initial average distance: {initial_distance}")
-
-final_distance = psr_calculator.apply_icp()
-print(f"Final average distance after ICP: {final_distance}")
+    final_distance = psr_calculator.apply_icp()
+    print(f"Final average distance after ICP: {final_distance}")
