@@ -2,7 +2,12 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.widgets import Button, TextBox
 import numpy as np
-import math
+
+import image_processing
+import matplotlib.patches as patches
+import random
+import time
+
 
 class DraggablePoint:
     """
@@ -21,7 +26,8 @@ class DraggablePoint:
     radius : float
         The radius of the point.
     """
-    def __init__(self, point, ax, update_info_callback, color='blue', radius=0.1):
+
+    def __init__(self, point, ax, update_info_callback, color='blue', radius=0.3):
         self.point = point
         self.ax = ax
         self.radius = radius
@@ -71,6 +77,14 @@ class DraggablePoint:
         self.update_info_callback()
         self.circle.figure.canvas.draw()
 
+
+    # def disconnect(self):
+    #     self.circle.figure.canvas.mpl_disconnect(self.cidpress)
+    #     self.circle.figure.canvas.mpl_disconnect(self.cidrelease)
+    #     self.circle.figure.canvas.mpl_disconnect(self.cidmotion)
+    #     self.circle.figure.canvas.mpl_disconnect(self.cidhover)
+
+
 class PointSetRegistration:
     """
     A class for point set registration, used to demonstrate the ICP algorithm with an interactive interface.
@@ -82,10 +96,15 @@ class PointSetRegistration:
     target_points : list of tuples
         The target point set.
     """
-    def __init__(self, source_points, target_points):
+    def __init__(self, source_points, target_points, transformation):
         self.source_points = source_points
         self.target_points = target_points
-        self.fig, self.ax = plt.subplots(figsize=(10, 12))
+        self.fig, self.ax = plt.subplots(figsize=(8, 8))
+        self.original_matrix = transformation
+        self.prev_matrix = np.eye(3,3)
+        # self.matrix_history = []
+        self.iteration_to_display = 0
+
         self.state = 0
         self.init_start_screen()
 
@@ -150,15 +169,25 @@ class PointSetRegistration:
         for point in self.source_points:
             dp = DraggablePoint(point, self.ax, self.update_info, color='blue')
             self.draggable_points.append(dp)
-        self.ax.set_xlim(0, 10)
-        self.ax.set_ylim(0, 12)
+
+        # self.ax.set_facecolor('xkcd:black')
+        # self.fig.patch.set_facecolor('xkcd:black')
+
+        self.ax.set_xlim(-20, 20)
+        self.ax.set_ylim(-20, 20)
         self.ax.set_aspect('equal')
         self.update_info()
+
         button_ax = self.fig.add_axes([0.75, 0.005, 0.1, 0.05])
+        # button_ax = self.fig.add_axes([0.35, 0.01, 0.2, 0.05])  
         self.button = Button(button_ax, 'Run ICP', color='lightblue', hovercolor='0.8')
         self.button.on_clicked(self.run_icp)
+
+        # sample matrix
+        self.update_displayed_matrices(np.eye(3,3))
+
         plt.show()
-    
+
     def update_source_points(self, new_source_points):
         self.source_points = np.array(new_source_points)
 
@@ -167,13 +196,17 @@ class PointSetRegistration:
         coordinates = [dp.point for dp in self.draggable_points]
         if hasattr(self, 'calculator'):
             self.calculator.update_source_points(coordinates)
-        coord_text = ', '.join([f'({x:.2f}, {y:.2f})' for x, y in coordinates])
-        if hasattr(self, 'info_text'):
-            self.info_text.set_text(f'Changed Coord: {coord_text}')
-        else:
-            self.info_text = self.ax.figure.text(0.5, 1.05, f'Points Coord: {coord_text}',
-                                                 ha='center', va='bottom', transform=self.ax.transAxes, fontsize=10)
         self.fig.canvas.draw_idle()
+
+    def update_displayed_matrices(self, most_recent_matrix):
+        # calculate cumulative ICP matrix gathered by previous iterations
+        cumulative_matrix = most_recent_matrix @ self.prev_matrix
+        self.prev_matrix = np.copy(cumulative_matrix)
+
+        self.props = dict(boxstyle='round', facecolor='wheat', alpha=1) # I can't figure out how to remove a box from the plot once it's there. This just puts the new on top of the old
+        self.textstr = f'Actual:\n{format_array_or_string(self.original_matrix)}\nICP Guess:\n{format_array_or_string(cumulative_matrix)}\nIteration Count:\n{self.iteration_to_display}'
+
+        self.ax.text(0.05, 0.95, self.textstr, transform=self.ax.transAxes, fontsize=14, verticalalignment='top', bbox=self.props)
 
     def run_icp(self, event):
         """Execute one iteration of the ICP algorithm and update the interface."""
@@ -183,7 +216,7 @@ class PointSetRegistration:
             self.calculator = PointSetRegistrationCalculator(self.source_points, self.target_points)
 
         # Perform one iteration of ICP and get the transformation and loss
-        self.source_points, R, t = self.calculator.apply_icp_iteration()
+        self.source_points, applied_matrix, self.iteration_to_display = self.calculator.apply_icp()
         current_loss = self.calculator.calculate_average_distance()
 
         # Update the display of source points
@@ -193,18 +226,9 @@ class PointSetRegistration:
             dp.circle.center = new_position
             dp.circle.figure.canvas.draw_idle()
 
-        # Update the matrix textbox with current iteration info
-        matrix_text = f'Iteration #{self.calculator.iteration}\nRotation:\n{R}\nTranslation:\n{t}\nCurrent Loss: {current_loss:.4f}'
-        if hasattr(self, 'matrix_textbox'):
-            self.matrix_textbox.set_val(matrix_text)
-        else:
-            matrix_box_ax = self.fig.add_axes([0.05, 0.01, 0.25, 0.1])
-            self.matrix_textbox = TextBox(matrix_box_ax, '', initial=matrix_text)
-            self.matrix_textbox.cursor.set_color('none')
-            self.matrix_textbox.on_submit = lambda x: None
+        self.update_displayed_matrices(applied_matrix)
 
         self.fig.canvas.draw_idle()
-        
 
 class PointSetRegistrationCalculator:
     """
@@ -214,8 +238,6 @@ class PointSetRegistrationCalculator:
         self.source_points = np.array(source_points)
         self.target_points = np.array(target_points)
         self.iteration = 0
-        self.R = np.eye(2)  # Initial rotation matrix as an identity matrix
-        self.t = np.zeros(2)  # Initial translation vector as zero
 
     def update_source_points(self, new_source_points):
         """Update the source points with the new positions."""
@@ -226,7 +248,7 @@ class PointSetRegistrationCalculator:
         distances = np.linalg.norm(self.source_points - self.target_points, axis=1)
         return np.mean(distances)
 
-    def apply_icp_iteration(self):
+    def apply_icp(self):
         """
         Perform one iteration of the ICP algorithm:
         1) Normalize point clouds to have zero mean.
@@ -235,6 +257,15 @@ class PointSetRegistrationCalculator:
         4) Transform the source points using the computed matrix.
         5) Optionally, calculate and check the current loss for convergence.
         """
+
+        # create the matrix to use to shift all the points. 
+        # should correspond first to a rotation, then a translation
+        whole_transformation = np.array([
+            [1., 0., 0.],
+            [0., 1., 0.],
+            [0., 0., 1.]
+        ])
+
         # Step 1: Normalize point clouds to have zero mean
         source_mean = np.mean(self.source_points, axis=0)
         target_mean = np.mean(self.target_points, axis=0)
@@ -245,35 +276,165 @@ class PointSetRegistrationCalculator:
         closest_points = np.array([target_centered[self.get_closest_id(x, y, target_centered)] for x, y in source_centered])
 
         # Step 3: Compute the covariance matrix and apply SVD
-        H = np.dot(source_centered.T, closest_points)
-        U, S, Vt = np.linalg.svd(H)
+        H = source_centered.T @ closest_points
+        U, _, Vt = np.linalg.svd(H)
         R = np.dot(Vt.T, U.T)
         if np.linalg.det(R) < 0:
             Vt[1, :] *= -1
             R = np.dot(Vt.T, U.T)
 
         # Step 4: Compute translation
-        t = target_mean - np.dot(R, source_mean)
+        t = target_mean - R @ source_mean
+
+        # transformed_points = np.dot(self.source_points, R.T) + t Alternative method of calculation. Not as clean
 
         # Transform the original source points using the computed rotation and translation
-        self.source_points = np.dot(self.source_points, R.T) + t
+        whole_transformation[0,2] = t[0]
+        whole_transformation[1,2] = t[1]
 
-        # Step 5: Update transformation matrices and iteration counter
-        self.R = R
-        self.t = t
+        whole_transformation[0,0] = R[0,0]
+        whole_transformation[0,1] = R[0,1]
+        whole_transformation[1,0] = R[1,0]
+        whole_transformation[1,1] = R[1,1]
+
+        transformed_points = del_extra_column((whole_transformation @ add_extra_column(self.source_points).T).T)
+
+        self.source_points = transformed_points
         self.iteration += 1
 
-        return self.source_points, R, t
+        return self.source_points, whole_transformation, self.iteration
 
     def get_closest_id(self, x, y, target_centered):
         """Find the index of the closest point in normalized target_points."""
         distances = np.linalg.norm(target_centered - np.array([x, y]), axis=1)
         return np.argmin(distances)
 
+def center_points_around_origin(points):
+    centroid = points.mean(axis=0)
 
+    return points - centroid 
 
+def slice_up_raw_points(raw_points, one_over_resolution=100):
 
+    source_points = np.asarray(raw_points.copy()[::one_over_resolution])
+    target_points = raw_points.copy().tolist()
+
+    offset_points = []
+
+    for _ in range(int(one_over_resolution / 2)):
+        offset_points.append(target_points.pop(0))
+    for _ in range(int(one_over_resolution / 2)):
+        target_points.append(offset_points.pop(0))
+
+    target_points = np.asarray(target_points[::one_over_resolution])
+    target_points = source_points # remove this if we want the points to be different. This is just testing
+
+    return source_points, target_points
+
+def add_extra_column(points):
+    num_rows = np.shape(points)[0]
+    row_to_add_for_translation = np.ones((num_rows,1))
+
+    # Add extra column to the matrix
+    return np.hstack((points, row_to_add_for_translation))
+
+def del_extra_column(points):
+    return np.delete(points, -1, axis=1)
+
+def format_array_or_string(value):
+    if isinstance(value, np.ndarray):
+        return np.array2string(value, formatter={"float_kind": lambda x: f"{x:.2f}"})
+    return str(value)
+
+def example1(): # simple translation
+    # translation
+    source_points = [(2, 1), (3, 4), (1, 3), (4, 3), (2, 2)]
+    target_points = [(7, 6), (8, 9), (6, 8), (9, 8), (7, 7)]
+    transformation_matrix = [[0]]
+
+    # rotation
+    # source_points = [(3.00, 2.00), (2.50, 1.00), (2.00, 2.50), (1.00, 2.00), (1.50, 1.00)]
+    # target_points = [(6.5, 7.0), (7.0, 8.0), (7.5, 6.5), (8.5, 7.0), (8.0, 8.0)]
+
+    psr = PointSetRegistration(source_points, target_points, transformation_matrix)
+
+    # set up our calculator and ICP
+    psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
+
+def example2(): # simple rotation
+
+    # rotation
+    source_points = [(3.00, 2.00), (2.50, 1.00), (2.00, 2.50), (1.00, 2.00), (1.50, 1.00)]
+    target_points = [(6.5, 7.0), (7.0, 8.0), (7.5, 6.5), (8.5, 7.0), (8.0, 8.0)]
+    transformation_matrix = [[0]]
+
+    psr = PointSetRegistration(source_points, target_points, transformation_matrix)
+
+    # set up our calculator and ICP
+    psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
+
+def example3(): # logo translation
+    raw_points = np.asarray(image_processing.sample_data("images/logo.png"))
+    centered_points = center_points_around_origin(raw_points)
+    source_points, target_points = slice_up_raw_points(centered_points, 1000)
+
+    ty      = -10
+    tx      = -2
+    theta   = 0
+
+    transformation_matrix = np.array([
+        [np.cos(theta), - np.sin(theta),    tx],
+        [np.sin(theta), np.cos(theta),      ty],
+        [0            , 0            ,      1],
+    ])
+
+    # Add extra column to target points so matrix works
+    target_points = add_extra_column(target_points)
+
+    # perform the linear transformation
+    target_points = transformation_matrix @ target_points.T
+    target_points = target_points.T # target points need to be column vectors
+
+    target_points = del_extra_column(target_points)
+
+    # init the graph
+    psr = PointSetRegistration(source_points, target_points, transformation_matrix)
+
+    # set up our calculator and ICP
+    psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
+    # initial_distance = psr_calculator.calculate_average_distance()
+
+def example4(): # logo translation and slight rotation
+    raw_points = np.asarray(image_processing.sample_data("images/logo.png"))
+    centered_points = center_points_around_origin(raw_points)
+    source_points, target_points = slice_up_raw_points(centered_points, 1000)
+
+    ty      = -10
+    tx      = -2
+    theta   = np.pi/10
+
+    transformation_matrix = np.array([
+        [np.cos(theta), - np.sin(theta),    tx],
+        [np.sin(theta), np.cos(theta),      ty],
+        [0            , 0            ,      1],
+    ])
+
+    # Add extra column to target points so matrix works
+    target_points = add_extra_column(target_points)
+
+    # perform the linear transformation
+    target_points = transformation_matrix @ target_points.T
+    target_points = target_points.T # target points need to be column vectors
+
+    target_points = del_extra_column(target_points)
+
+    # init the graph
+    psr = PointSetRegistration(source_points, target_points, transformation_matrix)
+
+    # set up our calculator and ICP
+    psr_calculator = PointSetRegistrationCalculator(source_points, target_points)
+    # initial_distance = psr_calculator.calculate_average_distance()
+
+# main function
 if __name__ == '__main__':
-    source_points = [(3, 3), (4, 3), (2, 2), (2, 1), (3, 4)]
-    target_points = [(3, 2), (4, 5), (2, 4), (5, 4), (3, 3)]
-    PointSetRegistration(source_points, target_points)
+    example4()
