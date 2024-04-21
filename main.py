@@ -158,10 +158,15 @@ class PointSetRegistration:
         self.button = Button(button_ax, 'Run ICP', color='lightblue', hovercolor='0.8')
         self.button.on_clicked(self.run_icp)
         plt.show()
+    
+    def update_source_points(self, new_source_points):
+        self.source_points = np.array(new_source_points)
 
     def update_info(self):
         """Update the text information of the coordinates."""
         coordinates = [dp.point for dp in self.draggable_points]
+        if hasattr(self, 'calculator'):
+            self.calculator.update_source_points(coordinates)
         coord_text = ', '.join([f'({x:.2f}, {y:.2f})' for x, y in coordinates])
         if hasattr(self, 'info_text'):
             self.info_text.set_text(f'Changed Coord: {coord_text}')
@@ -172,6 +177,8 @@ class PointSetRegistration:
 
     def run_icp(self, event):
         """Execute one iteration of the ICP algorithm and update the interface."""
+        self.update_info()
+        
         if not hasattr(self, 'calculator'):
             self.calculator = PointSetRegistrationCalculator(self.source_points, self.target_points)
 
@@ -209,6 +216,10 @@ class PointSetRegistrationCalculator:
         self.iteration = 0
         self.R = np.eye(2)  # Initial rotation matrix as an identity matrix
         self.t = np.zeros(2)  # Initial translation vector as zero
+
+    def update_source_points(self, new_source_points):
+        """Update the source points with the new positions."""
+        self.source_points = np.array(new_source_points)
 
     def calculate_average_distance(self):
         """Calculate the current average distance between aligned points."""
@@ -263,6 +274,6 @@ class PointSetRegistrationCalculator:
 
 
 if __name__ == '__main__':
-    source_points = [(1, 3), (4, 3), (2, 2), (2, 1), (3, 4)]
+    source_points = [(3, 3), (4, 3), (2, 2), (2, 1), (3, 4)]
     target_points = [(3, 2), (4, 5), (2, 4), (5, 4), (3, 3)]
     PointSetRegistration(source_points, target_points)
