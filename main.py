@@ -71,13 +71,6 @@ class DraggablePoint:
         self.update_info_callback()
         self.circle.figure.canvas.draw()
 
-    def disconnect(self):
-        """Disconnect all matplotlib event connections."""
-        self.circle.figure.canvas.mpl_disconnect(self.cidpress)
-        self.circle.figure.canvas.mpl_disconnect(self.cidrelease)
-        self.circle.figure.canvas.mpl_disconnect(self.cidmotion)
-        self.circle.figure.canvas.mpl_disconnect(self.cidhover)
-
 class PointSetRegistration:
     """
     A class for point set registration, used to demonstrate the ICP algorithm with an interactive interface.
@@ -157,7 +150,6 @@ class PointSetRegistration:
                                                  ha='center', va='bottom', transform=self.ax.transAxes, fontsize=10)
         self.fig.canvas.draw_idle()
 
-
     def run_icp(self, event):
         """Execute one iteration of the ICP algorithm and update the interface."""
         if not hasattr(self, 'calculator'):
@@ -182,86 +174,75 @@ class PointSetRegistration:
             matrix_box_ax = self.fig.add_axes([0.05, 0.01, 0.25, 0.1])
             self.matrix_textbox = TextBox(matrix_box_ax, '', initial=matrix_text)
             self.matrix_textbox.cursor.set_color('none')
-            # Override the on_submit method to prevent user typing
             self.matrix_textbox.on_submit = lambda x: None
 
-
         self.fig.canvas.draw_idle()
-
+        
 
 class PointSetRegistrationCalculator:
     """
-    A class for point set registration calculation, used to compute the minimum distance between point sets and perform the ICP algorithm.
-
-    Parameters
-    ----------
-    source_points : list of tuples
-        The source point set.
-    target_points : list of tuples
-        The target point set.
+    A class for point set registration calculation, using the ICP algorithm to compute the optimal alignment of point sets.
     """
     def __init__(self, source_points, target_points):
         self.source_points = np.array(source_points)
         self.target_points = np.array(target_points)
         self.iteration = 0
-        self.R = None
-        self.t = None
+        self.R = np.eye(2)  # Initial rotation matrix as an identity matrix
+        self.t = np.zeros(2)  # Initial translation vector as zero
 
     def calculate_average_distance(self):
-        distances = np.sqrt(((self.source_points - self.target_points) ** 2).sum(axis=1))
+        """Calculate the current average distance between aligned points."""
+        distances = np.linalg.norm(self.source_points - self.target_points, axis=1)
         return np.mean(distances)
 
     def apply_icp_iteration(self):
-        # Perform one iteration of ICP
-        if self.iteration == 0:
-            self.R = np.eye(2)  # Initial rotation matrix
-            self.t = np.zeros(2)  # Initial translation vector
+        """
+        Perform one iteration of the ICP algorithm:
+        1) Normalize point clouds to have zero mean.
+        2) Find corresponding points based on normalized point clouds.
+        3) Compute the transformation matrix using SVD based on corresponding point pairs.
+        4) Transform the source points using the computed matrix.
+        5) Optionally, calculate and check the current loss for convergence.
+        """
+        # Step 1: Normalize point clouds to have zero mean
+        source_mean = np.mean(self.source_points, axis=0)
+        target_mean = np.mean(self.target_points, axis=0)
+        source_centered = self.source_points - source_mean
+        target_centered = self.target_points - target_mean
 
-        closest_points = np.array([
-            self.target_points[self.get_closest_id(x, y)]
-            for x, y in self.source_points
-        ])
+        # Step 2: Find corresponding points based on normalized point clouds
+        closest_points = np.array([target_centered[self.get_closest_id(x, y, target_centered)] for x, y in source_centered])
 
-        # Compute centroids of source and target
-        source_centroid = np.mean(self.source_points, axis=0)
-        target_centroid = np.mean(closest_points, axis=0)
+        # Step 3: Compute the covariance matrix and apply SVD
+        H = np.dot(source_centered.T, closest_points)
+        U, S, Vt = np.linalg.svd(H)
+        R = np.dot(Vt.T, U.T)
+        if np.linalg.det(R) < 0:
+            Vt[1, :] *= -1
+            R = np.dot(Vt.T, U.T)
 
-        # Subtract centroids
-        source_centered = self.source_points - source_centroid
-        target_centered = closest_points - target_centroid
+        # Step 4: Compute translation
+        t = target_mean - np.dot(R, source_mean)
 
-        # Compute the matrix W
-        W = np.zeros((2, 2))
-        for s, t in zip(source_centered, target_centered):
-            W += np.outer(s, t)
+        # Transform the original source points using the computed rotation and translation
+        self.source_points = np.dot(self.source_points, R.T) + t
 
-        # Compute rotation using arctangent
-        theta = math.atan2(W[1, 0] - W[0, 1], W[0, 0] + W[1, 1])
-        R = np.array([[math.cos(theta), -math.sin(theta)],
-                      [math.sin(theta), math.cos(theta)]])
-        
-        # Compute translation
-        t = target_centroid - np.dot(R, source_centroid)
-
-        # Accumulate rotation and translation
-        self.R = np.dot(R, self.R)
-        self.t = t + np.dot(R, self.t)
-
-        # Apply transformation
-        self.source_points = (np.dot(self.source_points, self.R.T) + self.t).tolist()
-
-        # Increment the iteration counter
+        # Step 5: Update transformation matrices and iteration counter
+        self.R = R
+        self.t = t
         self.iteration += 1
 
-        return self.source_points, self.R, self.t
+        return self.source_points, R, t
 
-    def get_closest_id(self, x, y):
-        # Find the index of the closest point in target_points
-        distances = np.linalg.norm(self.target_points - np.array([x, y]), axis=1)
+    def get_closest_id(self, x, y, target_centered):
+        """Find the index of the closest point in normalized target_points."""
+        distances = np.linalg.norm(target_centered - np.array([x, y]), axis=1)
         return np.argmin(distances)
-    
-    
+
+
+
+
 if __name__ == '__main__':
-    source_points = [(2, 1), (3, 4), (1, 3), (4, 3), (2, 2)]
+    source_points = [(1, 3), (4, 3), (2, 2), (2, 1), (3, 4)]
     target_points = [(3, 2), (4, 5), (2, 4), (5, 4), (3, 3)]
     PointSetRegistration(source_points, target_points)
