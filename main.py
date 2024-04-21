@@ -96,7 +96,14 @@ class PointSetRegistration:
         self.ax.text(0.5, 0.6, 'Welcome to the ICP Algorithm Demo', 
                     horizontalalignment='center', verticalalignment='center', 
                     transform=self.ax.transAxes, fontsize=14)
-        self.ax.text(0.5, 0.5, 'Key Concepts:\n- \\textbf{Point Set Registration}: Techniques for finding the best alignment between point sets.\n- \\textbf{Point Cloud}: A collection of points in space representing a 3D shape.\n- \\textbf{Rigid Transformation}: A transformation that maintains distances and angles, such as rotation and translation.\n- \\textbf{Matrix Transformation}: Applying linear algebraic transformations using matrices.',
+        self.ax.text(0.5, 0.5, 
+                    'Key Concepts: \n'
+                    '- \\textbf{Point Set Registration}: Techniques for finding the best alignment between point sets.\\\n'
+                    '- \\textbf{Point Cloud}: A collection of points. cloud representing a 3D shape in space.\\\n'
+                    '- \\textbf{Rigid Transformation}: A transformation that maintains distances and angles, such as rotation and translation.\\\n'
+                    '- \\textbf{Matrix Transformation}: Applying linear algebraic transformations using matrices.\\\n'
+                    '- \\textbf{Iterative Closest Point (ICP) Algorithm}: Minimizes differences between point sets by iteratively updating transformations.\\\n'
+                    '- \\textbf{Error Metrics}: Measures to quantify alignment quality, typically involving distances between points after transformation.',
                     horizontalalignment='center', verticalalignment='center', 
                     transform=self.ax.transAxes, fontsize=12, usetex=True)
         self.start_button_ax = self.fig.add_axes([0.45, 0.2, 0.1, 0.05])  # Modify here, set it as a class attribute
@@ -110,8 +117,21 @@ class PointSetRegistration:
             self.state = 1
             self.ax.clear()
             self.ax.axis('off') 
-            self.ax.text(0.5, 0.5, 'ICP Algorithm Steps:\n\n1. Select corresponding points between datasets.\n2. Estimate the transformation that best aligns the points.\n3. Apply the transformation to align the point sets.\n4. Iterate until convergence.\n5. Evaluate the quality of the alignment.',
-                        horizontalalignment='center', verticalalignment='center', transform=self.ax.transAxes, fontsize=14)
+            self.ax.text(0.5, 0.5, 
+                        '\\textbf{1. Normalize Point Clouds:} Normalize to zero mean.\n'
+                        '   - Subtract the mean of each coordinate from all points.\n\n'
+                        '\\textbf{2. Find Corresponding Points:} Identify nearest points in normalized clouds.\n'
+                        '   - For each point in source, find closest point in target using Euclidean distance.\n\n'
+                        '\\textbf{3. Compute Transformation Matrix:} Use SVD on corresponding pairs.\n'
+                        '   - Decompose covariance matrix from point pairs to extract rotation and scaling.\n\n'
+                        '\\textbf{4. Transform Source Points:} Apply computed rotation and translation.\n'
+                        '   - Update source points by applying the transformation matrix.\n\n'
+                        '\\textbf{5. Calculate Current Loss:} Measure alignment quality to decide further iterations.\n'
+                        '   - Calculate mean distance between transformed source points and target.\n\n'
+                        '\\textbf{6. Decide on Iteration Continuation:} Check if additional iterations are needed.\n'
+                        '   - Continue if loss is above threshold or max iterations not reached.\n',
+                        horizontalalignment='center', verticalalignment='center', 
+                        transform=self.ax.transAxes, fontsize=14, usetex=True)
             self.fig.canvas.draw_idle()
 
         elif self.state == 1:
