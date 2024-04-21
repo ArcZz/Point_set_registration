@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.widgets import Button, TextBox
 import numpy as np
+
 import image_processing
 import matplotlib.patches as patches
 import random
@@ -25,6 +26,7 @@ class DraggablePoint:
     radius : float
         The radius of the point.
     """
+
     def __init__(self, point, ax, update_info_callback, color='blue', radius=0.3):
         self.point = point
         self.ax = ax
@@ -75,11 +77,13 @@ class DraggablePoint:
         self.update_info_callback()
         self.circle.figure.canvas.draw()
 
+
     # def disconnect(self):
     #     self.circle.figure.canvas.mpl_disconnect(self.cidpress)
     #     self.circle.figure.canvas.mpl_disconnect(self.cidrelease)
     #     self.circle.figure.canvas.mpl_disconnect(self.cidmotion)
     #     self.circle.figure.canvas.mpl_disconnect(self.cidhover)
+
 
 class PointSetRegistration:
     """
