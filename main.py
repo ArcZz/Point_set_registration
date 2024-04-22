@@ -99,7 +99,7 @@ class PointSetRegistration:
     def __init__(self, source_points, target_points, transformation):
         self.source_points = source_points
         self.target_points = target_points
-        self.fig, self.ax = plt.subplots(figsize=(8, 8))
+        self.fig, self.ax = plt.subplots(figsize=(10, 12))
         self.original_matrix = transformation
         self.prev_matrix = np.eye(3,3)
         # self.matrix_history = []
@@ -112,11 +112,11 @@ class PointSetRegistration:
         """Initialize the start screen, displaying the algorithm introduction and a start button."""
         self.ax.clear()
         self.ax.axis('off') 
-        self.ax.text(0.5, 0.6, 'Welcome to the ICP Algorithm Demo', 
+        self.ax.text(0.5, 0.6, 'Welcome to the ICP Algorithm Demo\n', 
                     horizontalalignment='center', verticalalignment='center', 
                     transform=self.ax.transAxes, fontsize=14)
         self.ax.text(0.5, 0.5, 
-                    'Key Concepts: \n'
+                    'Key Concepts: \n\n'
                     '- \\textbf{Point Set Registration}: Techniques for finding the best alignment between point sets.\\\n'
                     '- \\textbf{Point Cloud}: A collection of points. cloud representing a 3D shape in space.\\\n'
                     '- \\textbf{Rigid Transformation}: A transformation that maintains distances and angles, such as rotation and translation.\\\n'
