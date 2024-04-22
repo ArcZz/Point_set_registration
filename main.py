@@ -210,10 +210,12 @@ class PointSetRegistration:
 
     def run_icp(self, event):
         """Execute one iteration of the ICP algorithm and update the interface."""
-        self.update_info()
+ 
         
         if not hasattr(self, 'calculator'):
             self.calculator = PointSetRegistrationCalculator(self.source_points, self.target_points)
+        coordinates = [dp.point for dp in self.draggable_points]
+        self.calculator.update_source_points(coordinates)
 
         # Perform one iteration of ICP and get the transformation and loss
         self.source_points, applied_matrix, self.iteration_to_display = self.calculator.apply_icp()
