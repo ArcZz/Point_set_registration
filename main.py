@@ -117,11 +117,11 @@ class PointSetRegistration:
                     transform=self.ax.transAxes, fontsize=14)
         self.ax.text(0.5, 0.5, 
                     'Key Concepts: \n\n'
-                    '- \\textbf{Point Set Registration}: Techniques for finding the best alignment between point sets.\\\n'
-                    '- \\textbf{Point Cloud}: A collection of points. cloud representing a 3D shape in space.\\\n'
-                    '- \\textbf{Rigid Transformation}: A transformation that maintains distances and angles, such as rotation and translation.\\\n'
-                    '- \\textbf{Matrix Transformation}: Applying linear algebraic transformations using matrices.\\\n'
-                    '- \\textbf{Iterative Closest Point (ICP) Algorithm}: Minimizes differences between point sets by iteratively updating transformations.\\\n'
+                    '- \\textbf{Point Set Registration}: Techniques for finding the best alignment between point sets.\n'
+                    '- \\textbf{Point Cloud}: A collection of points. cloud representing a 3D shape in space.\n'
+                    '- \\textbf{Rigid Transformation}: A transformation that maintains distances and angles, such as rotation and translation.\n'
+                    '- \\textbf{Matrix Transformation}: Applying linear algebraic transformations using matrices.\n'
+                    '- \\textbf{Iterative Closest Point (ICP) Algorithm}: Minimizes differences between point sets by iteratively updating transformations.\n'
                     '- \\textbf{Error Metrics}: Measures to quantify alignment quality, typically involving distances between points after transformation.',
                     horizontalalignment='center', verticalalignment='center', 
                     transform=self.ax.transAxes, fontsize=12, usetex=True)
